@@ -1,0 +1,257 @@
+---
+title: "Final_project"
+author: "Natashia Nygaard"
+date: "19/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load Libraries and mapbox api
+
+```{r mapbox, eval=FALSE, echo=TRUE}
+my_token <- "pk.eyJ1IjoibWFwbmF0IiwiYSI6ImNrenk3eGx3aDAybmgydm1saTY5bXZlcjYifQ.V552lWpfCPz_i34FvQ5uBg"
+
+library(mapboxapi)
+mb_access_token(my_token, install = TRUE)
+```
+```{r libraries, eval=FALSE, echo=TRUE}
+library(sf)
+library(raster)
+library(tidyverse)
+library(leaflet)
+
+install.packages('leaflet.extras')
+library(leaflet.extras)
+library(htmlwidgets)
+library(RColorBrewer)
+
+```
+
+```{r more libraries, eval=FALSE, echo=TRUE}
+library(jsonlite)
+library(tidytext)
+library(dplyr)
+library(Rcpp)
+library(fasterize)
+library(opencage)
+```
+
+
+```{r opencage, eval=FALSE, echo=TRUE}
+Sys.setenv(OPENCAGE_KEY = "db5bcbbaa16443448c218247dca5d6ec")
+```
+
+# Define and save universities as spatial elements
+
+## Define and save the current universities 
+
+```{r current university locations, eval=FALSE, echo=TRUE}
+Current_universities <- c("København","Aarhus","Odense","Aalborg","Lyngby","Frederiksberg","Roskilde","Herning","Emdrup","Esbjerg","Kolding","Slagelse","Sønderborg","Esbjerg","Ballerup")
+```
+
+
+## Use the oc_forward function to find the coordinates of the current universities, based on the names of the cities 
+
+```{r current universities map, eval=FALSE, echo=TRUE}
+c_u <- oc_forward_df(placename = Current_universities, countrycode = "DK", limit =1, no_annotations = TRUE)
+
+
+```
+
+## Define and save the future universities 
+
+```{r future university locations, eval=FALSE, echo=TRUE}
+Future_universities <- c("Esbjerg","Foulum","Herning","Hirtshals","Hjørring","Holbæk","Kalundborg","Kolding","Køge","Nykøbing Falster","Næstved","Risø","Rødby","Rønne","Skive","Slagelse","Struer","Sønderborg","Vejle")
+```
+
+
+## Use the oc_forward function to find the coordinates of the future universities, based on the names of the cities 
+
+```{r future universities map, eval=FALSE, echo=TRUE}
+f_u <- oc_forward_df(placename = Future_universities, countrycode = "DK", limit =1, no_annotations = TRUE)
+
+
+```
+
+
+## Use the st_as_sf to convert the universities to sf object 
+
+```{r converting to sf objects, eval=FALSE, echo=TRUE}
+#Convert to sf object
+
+c_u_sf <- st_as_sf(c_u, coords = c("oc_lng", "oc_lat"), crs = 4326)
+f_u_sf <- st_as_sf(f_u, coords = c("oc_lng", "oc_lat"), crs = 4326)
+
+
+```
+
+## Creating a cycling range isochrone based on the current universities, defining the range to be 20 minutes 
+```{r cycliing range current universities, eval=FALSE, echo=TRUE}
+cycling_isos_cu <- mb_isochrone(
+  c_u_sf,
+  profile = "cycling",
+  time = 20,
+  id = "placename"
+)
+```
+
+## Using mapbox to create a map of this cycling isochrone ranging around the current universities 
+```{r cycling range future universities mapped, eval=FALSE, echo=TRUE}
+library(mapboxapi)
+
+mapbox_map_cu <- leaflet() %>%
+  addMapboxTiles(style_id = "streets-v11",
+                 username = "mapbox") 
+
+mapbox_map_cu %>%
+  addPolygons(data = cycling_isos_cu,
+              popup = ~id)
+
+
+```
+
+## Creating a cycling range isochrone based on the future universities, defining the range to be 20 minutes 
+
+```{r cycling isochrone future universities, eval=FALSE, echo=TRUE}
+cycling_isos_fu <- mb_isochrone(
+  f_u_sf,
+  profile = "cycling",
+  time = 20,
+  id = "placename"
+)
+```
+
+## Using mapbox to create a map of this cycling isochrone ranging around the future universities 
+
+```{r add cycling map future universities, eval=FALSE, echo=TRUE}
+
+library(mapboxapi)
+
+mapbox_map_fu <- leaflet() %>%
+  addMapboxTiles(style_id = "streets-v11",
+                 username = "mapbox") 
+
+mapbox_map_fu %>%
+  addPolygons(data = cycling_isos_fu,
+              popup = ~id)
+
+
+
+```
+## Read the data of the young people's geographical location, using st_read 
+```{r young people data, eval=FALSE, echo=TRUE}
+young_people <- st_read("../in/unge_demografi.csv", options = "", stringsAsFactors = FALSE, header = FALSE)
+```
+
+## I have to change the column containing number of young people into numeric in order for later work
+```{r numeric values, eval=FALSE, echo=TRUE}
+young_numeric <- young_people$`19-22_years_old` %>% as.integer(young_people$`19-22_years_old`) 
+
+
+```
+
+## Turning the numeric values into a dataframe and changing the column name
+```{r numeric to df, eval=FALSE, echo=TRUE}
+library (plyr)
+df <- ldply (young_numeric, data.frame)
+
+
+names(df) <- c("19-22_years_old")
+
+
+```
+
+## Renaming the columns in the young_people dataframe
+```{r rename columns, eval=FALSE, echo=TRUE}
+names(young_people) <- c("municipality","19_years_old", "20_years_old","21_years_old","22_years_old","19-22_years_old")
+```
+
+## Using oc_forward_df in order to create spatial coordinates for the municipalities in the dataframe.
+```{r get coordinates, eval=FALSE, echo=TRUE}
+young_demo <- oc_forward_df(placename = young_people$municipality, countrycode = "DK", limit =1, no_annotations = TRUE)
+```
+
+## using st_as_sf to create create a sf object from the young_demo
+```{r create sf object, eval=FALSE, echo=TRUE}
+young_demo_sf <- st_as_sf(young_demo, coords = c("oc_lng", "oc_lat"), crs = 4326)
+```
+
+## Rename the columns
+```{r rename columns again, eval=FALSE, echo=TRUE}
+names(young_demo) <- c("municipality","lat", "long","placename")
+```
+
+## Join the young_people and young_demo by municipality to merge the number of young people in each municipality including the lat long 
+
+```{r join dataframes, eval=FALSE, echo=TRUE}
+young_people_demo <- young_people %>% inner_join(young_demo, by = "municipality")
+```
+
+## Merging the df containing numeric values and the young people demo df
+
+```{r merged df, eval=FALSE, echo=TRUE}
+young_df<- merge(df, young_people_demo)
+```
+
+## creating a clean dataframe, containing only the number of residents in the selected group of age for each municipality and the latitude and longitude for the municipalities.
+
+
+```{r clean df, eval=FALSE, echo=TRUE}
+clean_young_demo <- young_df %>% 
+  select(c("lat","long", "19-22_years_old", "municipality"))
+```
+
+
+
+
+## find the five cities with most young people living there - the order in the df is descending, so the top 5 can be found using the tail function. 
+```{r top 5 cities, eval=FALSE, echo=TRUE}
+top_5 <- tail(clean_young_demo,n=5)
+
+top_5
+
+
+```
+## Plot the five cities with most young people on the map containing the cycling isochrones with a distance range of 20 minutes, to see if any of them overlap 
+```{r create and save future universities map, eval=FALSE, echo=TRUE}
+#Define the title of the map of the future universities combined with the cycling range isos
+title_fu <- "20 minute cycling range from future universities (blue) and top five cities with most young residents (red)"
+
+# Create, save and plot the map 
+top_5_cities_fu <- mapbox_map_fu %>%
+  addPolygons(data = cycling_isos_fu,
+              popup = ~id) %>%
+  addCircleMarkers(lng=top_5$long, lat=top_5$lat, color = "RED") %>%
+  addControl(title_fu, position = "bottomleft") %>%
+  addMiniMap(
+    width = 100,
+    height = 100,
+    position = "topright")
+
+saveWidget(top_5_cities_fu,"../out/top_5_cities_fu.html", selfcontained=TRUE)
+
+top_5_cities_fu
+```
+## Plot the five cities with most young people on the map containing the cycling isochrones with a distance range of 20 minutes, to see if any of them overlap 
+```{r create and save current universities map, eval=FALSE, echo=TRUE}
+#Define title for the map of current universities and the cycling range isos
+title_cu <- "20 minute cycling range from current universities (blue) and top five cities with most young residents (red)"
+
+#Create, save and plot the map 
+top_5_cities_cu <- mapbox_map_cu %>%
+  addPolygons(data = cycling_isos_cu,
+              popup = ~id) %>%
+  addCircleMarkers(lng=top_5$long, lat=top_5$lat, color = "RED") %>%
+  addControl(title_cu, position = "bottomleft") %>%
+  addMiniMap(
+    width = 100,
+    height = 100,
+    position = "topright")
+
+saveWidget(top_5_cities_cu,"../out/top_5_cities_cu.html", selfcontained=TRUE)
+
+top_5_cities_cu
+```
+
